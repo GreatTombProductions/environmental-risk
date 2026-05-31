@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Environmental Risk Profile</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f1419;color:#e7e9ea;min-height:100vh;line-height:1.5}
+.container{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin-bottom:4px;color:#fff}
+.subtitle{color:#71767b;font-size:0.9rem;margin-bottom:20px}
+.search-box{display:flex;gap:8px;margin-bottom:24px}
+.search-box input{flex:1;padding:12px 16px;border:1px solid #333;border-radius:8px;background:#1a1f26;color:#e7e9ea;font-size:1rem;outline:none}
+.search-box input:focus{border-color:#1d9bf0}
+.search-box input::placeholder{color:#555}
+.search-box button{padding:12px 24px;border:none;border-radius:8px;background:#1d9bf0;color:#fff;font-size:1rem;cursor:pointer;font-weight:600;white-space:nowrap}
+.search-box button:hover{background:#1a8cd8}
+.search-box button:disabled{background:#333;color:#666;cursor:not-allowed}
+
+.radius-controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;padding:12px;background:#1a1f26;border-radius:8px;border:1px solid #2a2f36}
+.radius-controls label{font-size:0.8rem;color:#71767b;display:flex;align-items:center;gap:4px}
+.radius-controls select{background:#0f1419;color:#e7e9ea;border:1px solid #333;border-radius:4px;padding:2px 4px;font-size:0.8rem}
+
+.status-bar{padding:10px 16px;background:#1a1f26;border-radius:8px;margin-bottom:16px;font-size:0.9rem;color:#71767b;border:1px solid #2a2f36}
+.status-bar.error{border-color:#f4212e;color:#f4212e}
+.status-bar.loading{border-color:#1d9bf0;color:#1d9bf0}
+
+.profile-header{padding:16px;background:#1a1f26;border-radius:8px 8px 0 0;border:1px solid #2a2f36;border-bottom:none;margin-top:16px}
+.profile-header h2{font-size:1.1rem;color:#fff}
+.profile-header .coords{font-size:0.8rem;color:#71767b;margin-top:4px}
+
+.section{border:1px solid #2a2f36;border-top:none;padding:16px;background:#16191e}
+.section:last-child{border-radius:0 0 8px 8px}
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.section-icon{font-size:1.2rem}
+.section-title{font-size:1rem;font-weight:600;color:#fff;flex:1}
+.severity{display:inline-block;width:10px;height:10px;border-radius:50%}
+.severity.green{background:#00ba7c}
+.severity.yellow{background:#ffd400}
+.severity.red{background:#f4212e}
+.section-summary{font-size:0.9rem;color:#aab}
+.finding{margin:8px 0;padding:8px 12px;background:#0f1419;border-radius:6px;border:1px solid #252830}
+.finding-name{font-weight:600;color:#e7e9ea;font-size:0.9rem}
+.finding-detail{font-size:0.8rem;color:#71767b;margin-top:2px}
+.finding-distance{font-size:0.8rem;color:#1d9bf0;float:right}
+.more-link{font-size:0.8rem;color:#1d9bf0;cursor:pointer;margin-top:8px;display:inline-block}
+.more-link:hover{text-decoration:underline}
+.na-note{font-size:0.85rem;color:#555;font-style:italic}
+
+.source-links{padding:16px;background:#1a1f26;border-radius:0 0 8px 8px;border:1px solid #2a2f36;border-top:none;font-size:0.8rem;color:#555}
+.source-links a{color:#1d9bf0;text-decoration:none}
+.source-links a:hover{text-decoration:underline}
+
+.loading-spinner{display:inline-block;width:14px;height:14px;border:2px solid #333;border-top-color:#1d9bf0;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.section-loading{color:#555;font-size:0.85rem;padding:8px 0}
+
+footer{text-align:center;padding:32px 16px;font-size:0.75rem;color:#555}
+footer a{color:#1d9bf0;text-decoration:none}
+
+.expand-btn{background:none;border:none;color:#1d9bf0;font-size:0.8rem;cursor:pointer;padding:4px 0;margin-top:4px}
+.expand-btn:hover{text-decoration:underline}
+.hidden{display:none}
+
+@media(max-width:600px){
+  .search-box{flex-direction:column}
+  .search-box button{width:100%}
+  .radius-controls{flex-direction:column}
+  h1{font-size:1.3rem}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Environmental Risk Profile</h1>
+  <p class="subtitle">What environmental hazards are documented near your address? Data from EPA, USACE, FRA, NTSB, and CA DPR.</p>
+
+  <div class="search-box">
+    <input type="text" id="address-input" placeholder="Enter address, city, or zip code" autocomplete="off">
+    <button id="search-btn" onclick="doSearch()">Search</button>
+  </div>
+
+  <div class="radius-controls">
+    <label>Toxic releases <select id="r-tri"><option value="5">5 mi</option><option value="10">10 mi</option><option value="15">15 mi</option><option value="25">25 mi</option><option value="1">1 mi</option></select></label>
+    <label>Dams <select id="r-dam"><option value="10">10 mi</option><option value="5">5 mi</option><option value="25">25 mi</option><option value="50">50 mi</option></select></label>
+    <label>Railroad <select id="r-rail"><option value="5">5 mi</option><option value="1">1 mi</option><option value="10">10 mi</option></select></label>
+    <label>Aviation <select id="r-avia"><option value="10">10 mi</option><option value="5">5 mi</option><option value="25">25 mi</option></select></label>
+    <label>Pesticides <select id="r-pest"><option value="2">2 mi</option><option value="0.5">0.5 mi</option><option value="1">1 mi</option><option value="5">5 mi</option></select></label>
+  </div>
+
+  <div id="status" class="status-bar hidden"></div>
+  <div id="results"></div>
+</div>
+
+<footer>
+  Data from public federal sources: EPA TRI, USACE NID, FRA, NTSB, EPA SDWIS, CA DPR.<br>
+  Not a risk assessment. Not advice. Public records, transparently presented.<br>
+  <a href="https://greattombproductions.github.io/quest-board/">More tools</a>
+</footer>
+
+<script>
+const BASE = 'https://greattombproductions.github.io';
+const SOURCES = {
+  tri: { url: `${BASE}/toxic-releases/data/facilities.json`, label: 'Toxic Releases (EPA TRI)', icon: '\u{1F3ED}' },
+  dam: { url: `${BASE}/dam-safety/data/dams.json`, label: 'Dam Safety (USACE NID)', icon: '\u{1F30A}' },
+  rail: { stateUrl: st => `${BASE}/railroad-safety/data/proximity/${st}.json`, label: 'Railroad Incidents (FRA)', icon: '\u{1F682}' },
+  avia: { stateUrl: st => `${BASE}/aviation-safety/data/p/${st}.json`, label: 'Aviation Accidents (NTSB)', icon: '\u2708\uFE0F' },
+  water: { zipUrl: z3 => `${BASE}/drinking-water/data/z/${z3}.json`, label: 'Drinking Water (EPA SDWIS)', icon: '\u{1F4A7}' },
+  pest: { url: `${BASE}/pesticide-exposure/data/processed/sections.json`, label: 'Pesticide Applications (CA DPR)', icon: '\u{1F33F}' }
+};
+
+// Cache loaded data
+const cache = {};
+
+function showStatus(msg, type='') {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status-bar ' + type;
+  el.classList.remove('hidden');
+}
+function hideStatus() { document.getElementById('status').classList.add('hidden'); }
+
+// Haversine distance in miles
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function geocode(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`;
+  const resp = await fetch(url, { headers: { 'User-Agent': 'EnvironmentalRiskProfile/1.0' } });
+  const data = await resp.json();
+  if (!data.length) throw new Error('Address not found. Try a more specific address or zip code.');
+  const r = data[0];
+  const addr = r.address || {};
+  // Extract state abbreviation from ISO code (e.g., "US-OR" -> "or")
+  const iso = addr['ISO3166-2-lvl4'] || '';
+  const stateAbbr = iso.startsWith('US-') ? iso.slice(3).toLowerCase() : getStateFromName(addr.state);
+  return {
+    lat: parseFloat(r.lat), lon: parseFloat(r.lon),
+    display: r.display_name,
+    state: stateAbbr,
+    zip: addr.postcode || null
+  };
+}
+
+function getStateFromName(name) {
+  if (!name) return null;
+  const stateNames = {
+    'Alabama':'al','Alaska':'ak','Arizona':'az','Arkansas':'ar','California':'ca',
+    'Colorado':'co','Connecticut':'ct','Delaware':'de','Florida':'fl','Georgia':'ga',
+    'Hawaii':'hi','Idaho':'id','Illinois':'il','Indiana':'in','Iowa':'ia',
+    'Kansas':'ks','Kentucky':'ky','Louisiana':'la','Maine':'me','Maryland':'md',
+    'Massachusetts':'ma','Michigan':'mi','Minnesota':'mn','Mississippi':'ms','Missouri':'mo',
+    'Montana':'mt','Nebraska':'ne','Nevada':'nv','New Hampshire':'nh','New Jersey':'nj',
+    'New Mexico':'nm','New York':'ny','North Carolina':'nc','North Dakota':'nd','Ohio':'oh',
+    'Oklahoma':'ok','Oregon':'or','Pennsylvania':'pa','Rhode Island':'ri','South Carolina':'sc',
+    'South Dakota':'sd','Tennessee':'tn','Texas':'tx','Utah':'ut','Vermont':'vt',
+    'Virginia':'va','Washington':'wa','West Virginia':'wv','Wisconsin':'wi','Wyoming':'wy',
+    'District of Columbia':'dc','Puerto Rico':'pr'
+  };
+  return stateNames[name] || null;
+}
+
+async function fetchJson(url) {
+  if (cache[url]) return cache[url];
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to load: ${resp.status}`);
+  const data = await resp.json();
+  cache[url] = data;
+  return data;
+}
+
+function fmt(n) {
+  return n.toLocaleString('en-US');
+}
+
+// ======= Source-specific processors =======
+
+async function loadTRI(lat, lon, radiusMi, container) {
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading toxic release data...</div>';
+  try {
+    const data = await fetchJson(SOURCES.tri.url);
+    // data: array of [id, name, city, state, zip, lat, lon, category, onsite_lbs, offsite_lbs]
+    const nearby = [];
+    for (const f of data) {
+      const dist = haversine(lat, lon, f[5], f[6]);
+      if (dist <= radiusMi) {
+        nearby.push({ name: f[1], city: f[2], state: f[3], category: f[7], onsite: f[8], offsite: f[9], dist });
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    const totalLbs = nearby.reduce((s, f) => s + (f.onsite || 0) + (f.offsite || 0), 0);
+    const severity = nearby.length === 0 ? 'green' : nearby.length <= 2 ? 'yellow' : 'red';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.tri.icon}</span>
+      <span class="section-title">Toxic Releases</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (nearby.length === 0) {
+      html += `<div class="section-summary">No TRI facilities found within ${radiusMi} miles.</div>`;
+    } else {
+      html += `<div class="section-summary">${nearby.length} TRI ${nearby.length===1?'facility':'facilities'} within ${radiusMi} mi &mdash; ${fmt(Math.round(totalLbs))} lbs total releases</div>`;
+      const show = nearby.slice(0, 5);
+      for (const f of show) {
+        html += `<div class="finding">
+          <span class="finding-distance">${f.dist.toFixed(1)} mi</span>
+          <div class="finding-name">${esc(f.name)}</div>
+          <div class="finding-detail">${esc(f.city)}, ${f.state} &bull; ${esc(f.category)} &bull; ${fmt(Math.round((f.onsite||0)+(f.offsite||0)))} lbs</div>
+        </div>`;
+      }
+      if (nearby.length > 5) {
+        const moreId = 'tri-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${nearby.length}'?'Show less':'Show all ${nearby.length}'">Show all ${nearby.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const f of nearby.slice(5)) {
+          html += `<div class="finding">
+            <span class="finding-distance">${f.dist.toFixed(1)} mi</span>
+            <div class="finding-name">${esc(f.name)}</div>
+            <div class="finding-detail">${esc(f.city)}, ${f.state} &bull; ${fmt(Math.round((f.onsite||0)+(f.offsite||0)))} lbs</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.tri.icon}</span><span class="section-title">Toxic Releases</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadDams(lat, lon, radiusMi, container) {
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading dam safety data...</div>';
+  try {
+    const data = await fetchJson(SOURCES.dam.url);
+    // data: array of [lat, lon, id, name, hazard, condition, height, storage, state]
+    // hazard: H=High, S=Significant, L=Low, U=Undetermined
+    // condition: S=Satisfactory, F=Fair, P=Poor, U=Unsatisfactory, N=Not Rated
+    const hazardLabel = { H: 'High', S: 'Significant', L: 'Low', U: 'Undetermined' };
+    const condLabel = { S: 'Satisfactory', F: 'Fair', P: 'Poor', U: 'Unsatisfactory', N: 'Not Rated' };
+
+    const nearby = [];
+    for (const d of data) {
+      if (!d[0] || !d[1]) continue;
+      const dist = haversine(lat, lon, d[0], d[1]);
+      if (dist <= radiusMi) {
+        nearby.push({ name: d[3], hazard: d[4], condition: d[5], height: d[6], state: d[8], dist });
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    const highHazard = nearby.filter(d => d.hazard === 'H');
+    const deficient = nearby.filter(d => d.hazard === 'H' && (d.condition === 'P' || d.condition === 'U'));
+    const severity = deficient.length > 0 ? 'red' : highHazard.length > 0 ? 'yellow' : 'green';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.dam.icon}</span>
+      <span class="section-title">Dam Safety</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (nearby.length === 0) {
+      html += `<div class="section-summary">No dams found within ${radiusMi} miles.</div>`;
+    } else {
+      let summ = `${nearby.length} ${nearby.length===1?'dam':'dams'} within ${radiusMi} mi`;
+      if (highHazard.length) summ += ` &mdash; ${highHazard.length} high-hazard`;
+      if (deficient.length) summ += `, ${deficient.length} deficient`;
+      html += `<div class="section-summary">${summ}</div>`;
+
+      // Show high-hazard dams first, then by distance
+      const prioritized = [...nearby].sort((a, b) => {
+        const ha = a.hazard === 'H' ? 0 : 1;
+        const hb = b.hazard === 'H' ? 0 : 1;
+        return ha - hb || a.dist - b.dist;
+      });
+      const show = prioritized.slice(0, 5);
+      for (const d of show) {
+        const condStr = condLabel[d.condition] || d.condition || 'Unknown';
+        const hazStr = hazardLabel[d.hazard] || d.hazard || 'Unknown';
+        const isDeficient = d.condition === 'P' || d.condition === 'U';
+        html += `<div class="finding">
+          <span class="finding-distance">${d.dist.toFixed(1)} mi</span>
+          <div class="finding-name">${esc(d.name || 'Unnamed Dam')}</div>
+          <div class="finding-detail">${hazStr} hazard &bull; ${condStr}${isDeficient ? ' \u26a0\ufe0f' : ''} &bull; ${d.height ? d.height + ' ft' : ''}</div>
+        </div>`;
+      }
+      if (prioritized.length > 5) {
+        const moreId = 'dam-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${prioritized.length}'?'Show less':'Show all ${prioritized.length}'">Show all ${prioritized.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const d of prioritized.slice(5)) {
+          const condStr = condLabel[d.condition] || d.condition || 'Unknown';
+          const hazStr = hazardLabel[d.hazard] || d.hazard || 'Unknown';
+          html += `<div class="finding">
+            <span class="finding-distance">${d.dist.toFixed(1)} mi</span>
+            <div class="finding-name">${esc(d.name || 'Unnamed Dam')}</div>
+            <div class="finding-detail">${hazStr} hazard &bull; ${condStr} &bull; ${d.height ? d.height + ' ft' : ''}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.dam.icon}</span><span class="section-title">Dam Safety</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadRailroad(lat, lon, radiusMi, state, container) {
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading railroad incident data...</div>';
+  try {
+    if (!state) { container.innerHTML = renderNA(SOURCES.rail, 'Could not determine state for proximity search.'); return; }
+    const data = await fetchJson(SOURCES.rail.stateUrl(state));
+    const nearby = [];
+    for (const r of data) {
+      if (!r.lat || !r.lon) continue;
+      const dist = haversine(lat, lon, r.lat, r.lon);
+      if (dist <= radiusMi) {
+        nearby.push({ ...r, dist });
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    const deaths = nearby.reduce((s, r) => s + (r.killed || 0), 0);
+    const hazmat = nearby.filter(r => r.hazmat).length;
+    const severity = deaths > 0 || hazmat > 2 ? 'red' : nearby.length > 3 ? 'yellow' : 'green';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.rail.icon}</span>
+      <span class="section-title">Railroad Incidents</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (nearby.length === 0) {
+      html += `<div class="section-summary">No railroad incidents found within ${radiusMi} miles (2017+).</div>`;
+    } else {
+      let summ = `${nearby.length} ${nearby.length===1?'incident':'incidents'} within ${radiusMi} mi (2017+)`;
+      if (deaths) summ += ` &mdash; ${deaths} fatalities`;
+      if (hazmat) summ += `, ${hazmat} hazmat releases`;
+      html += `<div class="section-summary">${summ}</div>`;
+
+      const show = nearby.slice(0, 5);
+      for (const r of show) {
+        html += `<div class="finding">
+          <span class="finding-distance">${r.dist.toFixed(1)} mi</span>
+          <div class="finding-name">${esc(r.rr || r.rrc || 'Unknown Railroad')}</div>
+          <div class="finding-detail">${esc(r.type || '')} &bull; ${r.date || r.year || ''} &bull; ${r.county || ''}${r.hazmat ? ' \u2622\ufe0f Hazmat' : ''}${r.killed ? ` \u2020${r.killed}` : ''}</div>
+        </div>`;
+      }
+      if (nearby.length > 5) {
+        const moreId = 'rail-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${nearby.length}'?'Show less':'Show all ${nearby.length}'">Show all ${nearby.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const r of nearby.slice(5)) {
+          html += `<div class="finding">
+            <span class="finding-distance">${r.dist.toFixed(1)} mi</span>
+            <div class="finding-name">${esc(r.rr || r.rrc || 'Unknown')}</div>
+            <div class="finding-detail">${esc(r.type || '')} &bull; ${r.date || r.year || ''}${r.hazmat ? ' \u2622\ufe0f' : ''}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.rail.icon}</span><span class="section-title">Railroad Incidents</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadAviation(lat, lon, radiusMi, state, container) {
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading aviation accident data...</div>';
+  try {
+    if (!state) { container.innerHTML = renderNA(SOURCES.avia, 'Could not determine state for proximity search.'); return; }
+    const data = await fetchJson(SOURCES.avia.stateUrl(state));
+    const nearby = [];
+    for (const a of data) {
+      if (!a.la || !a.lo) continue;
+      const dist = haversine(lat, lon, a.la, a.lo);
+      if (dist <= radiusMi) {
+        nearby.push({ ...a, dist });
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    const fatalities = nearby.reduce((s, a) => s + (a.f || 0), 0);
+    const severity = fatalities > 5 ? 'red' : nearby.length > 3 ? 'yellow' : 'green';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.avia.icon}</span>
+      <span class="section-title">Aviation Accidents</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (nearby.length === 0) {
+      html += `<div class="section-summary">No aviation accidents found within ${radiusMi} miles.</div>`;
+    } else {
+      let summ = `${nearby.length} ${nearby.length===1?'accident':'accidents'} within ${radiusMi} mi`;
+      if (fatalities) summ += ` &mdash; ${fatalities} fatalities`;
+      html += `<div class="section-summary">${summ}</div>`;
+
+      const sevLabel = { FATL: 'Fatal', SERS: 'Serious', MINR: 'Minor', NONE: 'None', INCD: 'Incident' };
+      const show = nearby.slice(0, 5);
+      for (const a of show) {
+        const dateStr = a.d ? a.d.split(' ')[0] : (a.y || '');
+        html += `<div class="finding">
+          <span class="finding-distance">${a.dist.toFixed(1)} mi</span>
+          <div class="finding-name">${esc(a.op || 'Private/Unknown')} &mdash; ${esc(a.m || 'Unknown aircraft')}</div>
+          <div class="finding-detail">${dateStr} &bull; ${esc(a.c || '')} &bull; ${sevLabel[a.sev] || a.sev || ''}${a.f ? ` \u2020${a.f}` : ''}</div>
+        </div>`;
+      }
+      if (nearby.length > 5) {
+        const moreId = 'avia-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${nearby.length}'?'Show less':'Show all ${nearby.length}'">Show all ${nearby.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const a of nearby.slice(5)) {
+          const dateStr = a.d ? a.d.split(' ')[0] : (a.y || '');
+          html += `<div class="finding">
+            <span class="finding-distance">${a.dist.toFixed(1)} mi</span>
+            <div class="finding-name">${esc(a.op || 'Private/Unknown')} &mdash; ${esc(a.m || '')}</div>
+            <div class="finding-detail">${dateStr} &bull; ${sevLabel[a.sev] || ''}${a.f ? ` \u2020${a.f}` : ''}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.avia.icon}</span><span class="section-title">Aviation Accidents</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadWater(lat, lon, zip, container) {
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading drinking water data...</div>';
+  try {
+    if (!zip) { container.innerHTML = renderNA(SOURCES.water, 'Could not determine zip code for water system lookup.'); return; }
+    const zip3 = zip.substring(0, 3);
+    const data = await fetchJson(SOURCES.water.zipUrl(zip3));
+    const systems = data[zip] || [];
+
+    const totalViolations = systems.reduce((s, w) => s + (w.violations || 0), 0);
+    const healthViolations = systems.reduce((s, w) => s + (w.health_violations || 0), 0);
+    const unresolved = systems.reduce((s, w) => s + (w.unresolved || 0), 0);
+    const leadExceeds = systems.some(w => w.lead_exceeds);
+    const severity = leadExceeds || unresolved > 3 ? 'red' : healthViolations > 0 ? 'yellow' : 'green';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.water.icon}</span>
+      <span class="section-title">Drinking Water</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (systems.length === 0) {
+      html += `<div class="section-summary">No water systems found for zip code ${zip}.</div>`;
+    } else {
+      let summ = `${systems.length} water ${systems.length===1?'system':'systems'} serving zip ${zip}`;
+      if (totalViolations) summ += ` &mdash; ${totalViolations} violations (${healthViolations} health)`;
+      if (unresolved) summ += `, ${unresolved} unresolved`;
+      html += `<div class="section-summary">${summ}</div>`;
+
+      // Sort by population descending
+      const sorted = [...systems].sort((a, b) => (b.pop || 0) - (a.pop || 0));
+      const show = sorted.slice(0, 5);
+      for (const w of show) {
+        html += `<div class="finding">
+          <div class="finding-name">${esc(w.name || 'Unknown System')}</div>
+          <div class="finding-detail">${w.type_name || w.type || ''} &bull; Pop. ${fmt(w.pop || 0)} &bull; ${w.source || ''} &bull; ${w.violations || 0} violations${w.lead_exceeds ? ' \u26a0\ufe0f Lead exceeds action level' : (w.lead_ppb != null ? ` &bull; Lead: ${w.lead_ppb} ppb` : '')}</div>
+        </div>`;
+      }
+      if (sorted.length > 5) {
+        const moreId = 'water-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${sorted.length}'?'Show less':'Show all ${sorted.length}'">Show all ${sorted.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const w of sorted.slice(5)) {
+          html += `<div class="finding">
+            <div class="finding-name">${esc(w.name || 'Unknown')}</div>
+            <div class="finding-detail">${w.type_name || ''} &bull; ${w.violations || 0} violations${w.lead_exceeds ? ' \u26a0\ufe0f' : ''}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.water.icon}</span><span class="section-title">Drinking Water</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadPesticides(lat, lon, radiusMi, state, container) {
+  if (state !== 'ca') {
+    container.innerHTML = `<div class="section-header">
+      <span class="section-icon">${SOURCES.pest.icon}</span>
+      <span class="section-title">Pesticide Applications</span>
+      <span class="severity green"></span>
+    </div><div class="na-note">California only. Data not available for this location.</div>`;
+    return;
+  }
+
+  container.innerHTML = '<div class="section-loading"><span class="loading-spinner"></span>Loading pesticide data...</div>';
+  try {
+    const data = await fetchJson(SOURCES.pest.url);
+    // data: array of {c: section_code, la, lo, co: county, lb: lbs, ap: applications, rl: restricted_lbs, ra: restricted_apps}
+    const nearby = [];
+    for (const s of data) {
+      if (!s.la || !s.lo) continue;
+      const dist = haversine(lat, lon, s.la, s.lo);
+      if (dist <= radiusMi) {
+        nearby.push({ ...s, dist });
+      }
+    }
+    nearby.sort((a, b) => a.dist - b.dist);
+
+    const totalLbs = nearby.reduce((s, p) => s + (p.lb || 0), 0);
+    const restrictedLbs = nearby.reduce((s, p) => s + (p.rl || 0), 0);
+    const severity = restrictedLbs > 1000 ? 'red' : nearby.length > 5 ? 'yellow' : 'green';
+
+    let html = `<div class="section-header">
+      <span class="section-icon">${SOURCES.pest.icon}</span>
+      <span class="section-title">Pesticide Applications</span>
+      <span class="severity ${severity}"></span>
+    </div>`;
+
+    if (nearby.length === 0) {
+      html += `<div class="section-summary">No pesticide application sites found within ${radiusMi} miles.</div>`;
+    } else {
+      let summ = `${nearby.length} application ${nearby.length===1?'site':'sites'} within ${radiusMi} mi &mdash; ${fmt(Math.round(totalLbs))} lbs applied`;
+      if (restrictedLbs > 0) summ += ` (${fmt(Math.round(restrictedLbs))} lbs restricted-use)`;
+      html += `<div class="section-summary">${summ}</div>`;
+
+      const show = nearby.slice(0, 5);
+      for (const p of show) {
+        html += `<div class="finding">
+          <span class="finding-distance">${p.dist.toFixed(1)} mi</span>
+          <div class="finding-name">${esc(p.co || 'Unknown')} County &mdash; Section ${esc(p.c || '')}</div>
+          <div class="finding-detail">${fmt(Math.round(p.lb || 0))} lbs &bull; ${p.ap || 0} applications${p.rl > 0 ? ` \u26a0\ufe0f ${fmt(Math.round(p.rl))} lbs restricted-use` : ''}</div>
+        </div>`;
+      }
+      if (nearby.length > 5) {
+        const moreId = 'pest-more-' + Date.now();
+        html += `<button class="expand-btn" onclick="document.getElementById('${moreId}').classList.toggle('hidden');this.textContent=this.textContent==='Show all ${nearby.length}'?'Show less':'Show all ${nearby.length}'">Show all ${nearby.length}</button>`;
+        html += `<div id="${moreId}" class="hidden">`;
+        for (const p of nearby.slice(5)) {
+          html += `<div class="finding">
+            <span class="finding-distance">${p.dist.toFixed(1)} mi</span>
+            <div class="finding-name">${esc(p.co || '')} County &mdash; ${esc(p.c || '')}</div>
+            <div class="finding-detail">${fmt(Math.round(p.lb || 0))} lbs${p.rl > 0 ? ' \u26a0\ufe0f' : ''}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="section-header"><span class="section-icon">${SOURCES.pest.icon}</span><span class="section-title">Pesticide Applications</span></div><div class="section-summary" style="color:#f4212e">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderNA(source, msg) {
+  return `<div class="section-header">
+    <span class="section-icon">${source.icon}</span>
+    <span class="section-title">${source.label.split('(')[0].trim()}</span>
+  </div><div class="na-note">${msg}</div>`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const el = document.createElement('span');
+  el.textContent = s;
+  return el.innerHTML;
+}
+
+async function doSearch() {
+  const input = document.getElementById('address-input').value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  showStatus('Geocoding address...', 'loading');
+
+  try {
+    const geo = await geocode(input);
+    const state = geo.state;
+    // Use zip from geocode (truncate to 5 digits); fall back to zip in user input
+    let geoZip = geo.zip ? geo.zip.replace(/[^0-9]/g, '').substring(0, 5) : null;
+    if (geoZip && geoZip.length !== 5) geoZip = null;
+    const inputZip = input.match(/\b(\d{5})\b/);
+    const finalZip = geoZip || (inputZip ? inputZip[1] : null);
+
+    hideStatus();
+
+    const radii = {
+      tri: parseFloat(document.getElementById('r-tri').value),
+      dam: parseFloat(document.getElementById('r-dam').value),
+      rail: parseFloat(document.getElementById('r-rail').value),
+      avia: parseFloat(document.getElementById('r-avia').value),
+      pest: parseFloat(document.getElementById('r-pest').value),
+    };
+
+    // Render skeleton
+    const results = document.getElementById('results');
+    results.innerHTML = `
+      <div class="profile-header">
+        <h2>${esc(geo.display)}</h2>
+        <div class="coords">${geo.lat.toFixed(4)}, ${geo.lon.toFixed(4)}${state ? ' \u2022 ' + state.toUpperCase() : ''}${finalZip ? ' \u2022 ' + finalZip : ''}</div>
+      </div>
+      <div class="section" id="sec-tri"></div>
+      <div class="section" id="sec-dam"></div>
+      <div class="section" id="sec-water"></div>
+      <div class="section" id="sec-rail"></div>
+      <div class="section" id="sec-avia"></div>
+      <div class="section" id="sec-pest"></div>
+      <div class="source-links">
+        Sources: <a href="${BASE}/toxic-releases/">EPA TRI</a> &bull;
+        <a href="${BASE}/dam-safety/">USACE NID</a> &bull;
+        <a href="${BASE}/drinking-water/">EPA SDWIS</a> &bull;
+        <a href="${BASE}/railroad-safety/">FRA</a> &bull;
+        <a href="${BASE}/aviation-safety/">NTSB</a> &bull;
+        <a href="${BASE}/pesticide-exposure/">CA DPR</a><br>
+        Data current as of each source's last pipeline run. Radii are approximate (haversine).
+      </div>
+    `;
+
+    // Launch all data loads in parallel
+    await Promise.allSettled([
+      loadTRI(geo.lat, geo.lon, radii.tri, document.getElementById('sec-tri')),
+      loadDams(geo.lat, geo.lon, radii.dam, document.getElementById('sec-dam')),
+      loadWater(geo.lat, geo.lon, finalZip, document.getElementById('sec-water')),
+      loadRailroad(geo.lat, geo.lon, radii.rail, state, document.getElementById('sec-rail')),
+      loadAviation(geo.lat, geo.lon, radii.avia, state, document.getElementById('sec-avia')),
+      loadPesticides(geo.lat, geo.lon, radii.pest, state, document.getElementById('sec-pest')),
+    ]);
+
+  } catch (e) {
+    showStatus(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+}
+
+// Enter key triggers search
+document.getElementById('address-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+</script>
+</body>
+</html>
